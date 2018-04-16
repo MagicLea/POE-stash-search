@@ -4,6 +4,7 @@
 *.so
 *.dylib
 backend/vendor/*
+!backend/vendor/vendor.json
 
 # Test binary, build with `go test -c`
 *.test
