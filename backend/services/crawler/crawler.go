@@ -10,6 +10,22 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
+const (
+	// POE API Constant
+	stashAPIURL = "public-stash-tabs"
+	apiParamID  = "id"
+
+	// DB Fields Constants
+	dbPOEStashSearch = "poe-stash-search"
+	cStashChange     = "StashChange"
+	keyChangeID      = "change_id"
+	keyNextChangeID  = "next_change_id"
+	cItem            = "Item"
+	keyStash         = "stashes"
+	keyID            = "id"
+	keyItem          = "item"
+)
+
 // Crawler is a crawler
 type Crawler struct {
 	// TODO:
@@ -35,7 +51,7 @@ func (c *Crawler) FollowStashStream(lastID string) error {
 	defer conn.Close()
 	// FIXME: it is a demo, and just do 10 times
 	for i := 0; i < 10; i++ {
-		url := fmt.Sprintf("%s/public-stash-tabs/?id=%s", c.apiBaseURL, nextID)
+		url := fmt.Sprintf("%s/%s/?%s=%s", c.apiBaseURL, stashAPIURL, apiParamID, nextID)
 		res, err := http.Get(url)
 		if err != nil {
 			return err
@@ -50,22 +66,22 @@ func (c *Crawler) FollowStashStream(lastID string) error {
 			return err
 		}
 
-		conn.DB("poe-stash-search").C("StashChange").Insert(
+		conn.DB(dbPOEStashSearch).C(cStashChange).Insert(
 			map[string]interface{}{
-				"change_id":      nextID,
-				"next_change_id": resMap["next_change_id"],
+				keyChangeID:     nextID,
+				keyNextChangeID: resMap[keyNextChangeID],
 			})
-		bulk := conn.DB("poe-stash-search").C("Item").Bulk()
+		bulk := conn.DB(dbPOEStashSearch).C(cItem).Bulk()
 		bulk.Unordered()
-		if resMap["stashes"] != nil {
-			for _, stash := range resMap["stashes"].([]interface{}) {
+		if resMap[keyStash] != nil {
+			for _, stash := range resMap[keyStash].([]interface{}) {
 				stashMap := stash.(map[string]interface{})
-				if stashMap["items"] != nil {
-					for _, item := range stashMap["items"].([]interface{}) {
+				if stashMap[keyItem] != nil {
+					for _, item := range stashMap[keyItem].([]interface{}) {
 						itemMap := item.(map[string]interface{})
-						selector := bson.M{"id": itemMap["id"]}
+						selector := bson.M{keyID: itemMap[keyID]}
 						update := itemMap
-						update["stash_id"] = stashMap["id"]
+						update["stash_id"] = stashMap[keyID]
 						update["stash_type"] = stashMap["stashType"]
 						bulk.Upsert(selector, update)
 					}
@@ -74,8 +90,8 @@ func (c *Crawler) FollowStashStream(lastID string) error {
 		}
 		bulk.Run()
 
-		fmt.Println("next id:", resMap["next_change_id"])
-		nextID = resMap["next_change_id"].(string)
+		fmt.Println("next id:", resMap[keyNextChangeID])
+		nextID = resMap[keyNextChangeID].(string)
 	}
 	return nil
 }
